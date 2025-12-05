@@ -1,0 +1,89 @@
+{
+  "etfs": [
+    {
+      "ticker": "VTI",
+      "name": "Vanguard Total Stock Market ETF",
+      "asset_class": "equity",
+      "expense_ratio": 0.0003,
+      "avg_daily_volume": 4500000
+    },
+    {
+      "ticker": "VXUS",
+      "name": "Vanguard Total International Stock ETF",
+      "asset_class": "equity",
+      "expense_ratio": 0.0007,
+      "avg_daily_volume": 3000000
+    },
+    {
+      "ticker": "VTV",
+      "name": "Vanguard Value ETF",
+      "asset_class": "equity",
+      "expense_ratio": 0.0004,
+      "avg_daily_volume": 2000000
+    },
+    {
+      "ticker": "VUG",
+      "name": "Vanguard Growth ETF",
+      "asset_class": "equity",
+      "expense_ratio": 0.0004,
+      "avg_daily_volume": 1500000
+    },
+    {
+      "ticker": "VWO",
+      "name": "Vanguard FTSE Emerging Markets ETF",
+      "asset_class": "equity",
+      "expense_ratio": 0.0008,
+      "avg_daily_volume": 8000000
+    },
+    {
+      "ticker": "BND",
+      "name": "Vanguard Total Bond Market ETF",
+      "asset_class": "bond",
+      "expense_ratio": 0.0003,
+      "avg_daily_volume": 7000000
+    },
+    {
+      "ticker": "BNDX",
+      "name": "Vanguard Total International Bond ETF",
+      "asset_class": "bond",
+      "expense_ratio": 0.0007,
+      "avg_daily_volume": 1500000
+    },
+    {
+      "ticker": "VTIP",
+      "name": "Vanguard Short-Term Inflation-Protected Securities ETF",
+      "asset_class": "bond",
+      "expense_ratio": 0.0004,
+      "avg_daily_volume": 1000000
+    },
+    {
+      "ticker": "VNQ",
+      "name": "Vanguard Real Estate ETF",
+      "asset_class": "real_estate",
+      "expense_ratio": 0.0012,
+      "avg_daily_volume": 4000000
+    },
+    {
+      "ticker": "VNQI",
+      "name": "Vanguard Global ex-U.S. Real Estate ETF",
+      "asset_class": "real_estate",
+      "expense_ratio": 0.0012,
+      "avg_daily_volume": 200000
+    },
+    {
+      "ticker": "GSG",
+      "name": "iShares S&P GSCI Commodity-Indexed Trust",
+      "asset_class": "commodity",
+      "expense_ratio": 0.0075,
+      "avg_daily_volume": 500000
+    },
+    {
+      "ticker": "IAU",
+      "name": "iShares Gold Trust",
+      "asset_class": "commodity",
+      "expense_ratio": 0.0025,
+      "avg_daily_volume": 8000000
+    }
+  ]
+}
+

@@ -1,0 +1,26 @@
+{
+  "holdings": [
+    {
+      "ticker": "VTI",
+      "shares": 150,
+      "cost_basis_per_share": 210.00
+    },
+    {
+      "ticker": "VXUS",
+      "shares": 80,
+      "cost_basis_per_share": 55.00
+    },
+    {
+      "ticker": "BND",
+      "shares": 100,
+      "cost_basis_per_share": 78.00
+    },
+    {
+      "ticker": "VNQ",
+      "shares": 25,
+      "cost_basis_per_share": 85.00
+    }
+  ],
+  "cash": 2500.00
+}
+

@@ -1,0 +1,29 @@
+[project]
+name = "polena"
+version = "0.1.0"
+description = "Robo-advisor for portfolio rebalancing with multiple optimization strategies"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "yfinance>=0.2.36",
+    "numpy>=1.26.0",
+    "pandas>=2.1.0",
+    "scipy>=1.11.0",
+    "cvxpy>=1.4.0",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+polena = "main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["robo_advisor"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
