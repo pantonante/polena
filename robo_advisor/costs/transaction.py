@@ -220,8 +220,11 @@ class TransactionCostModel:
         target_weights: dict[str, float],
         portfolio_value: float,
         prices: dict[str, float],
-    ) -> list[TradeOrder]:
+    ) -> tuple[list[TradeOrder], float]:
         """Calculate trades needed to rebalance portfolio.
+
+        Shares are rounded to the nearest integer since fractional shares
+        cannot be traded for most ETFs.
 
         Args:
             current_weights: Current portfolio weights.
@@ -230,9 +233,11 @@ class TransactionCostModel:
             prices: Current prices by ticker.
 
         Returns:
-            List of trade orders to execute.
+            Tuple of (list of trade orders, residual cash from rounding).
         """
         orders = []
+        total_target_value = 0.0
+        total_actual_value = 0.0
 
         # Get all tickers
         all_tickers = set(current_weights.keys()) | set(target_weights.keys())
@@ -252,17 +257,30 @@ class TransactionCostModel:
             if price <= 0:
                 continue
 
-            shares = value_diff / price
+            # Round to nearest integer (can't buy fractional shares)
+            exact_shares = value_diff / price
+            shares = round(exact_shares)
+
+            # Track target vs actual values for residual calculation
+            total_target_value += abs(value_diff)
+            total_actual_value += abs(shares * price)
+
+            if shares == 0:
+                continue
 
             orders.append(
                 TradeOrder(
                     ticker=ticker,
-                    shares=shares,
+                    shares=float(shares),
                     price=price,
                 )
             )
 
-        return orders
+        # Residual cash is the difference between target and actual trade values
+        # Positive residual means cash left over, negative means we'd need more cash
+        residual_cash = total_target_value - total_actual_value
+
+        return orders, residual_cash
 
     def net_benefit_of_rebalancing(
         self,
@@ -286,7 +304,7 @@ class TransactionCostModel:
         Returns:
             Dictionary with cost-benefit analysis.
         """
-        orders = self.calculate_rebalancing_trades(
+        orders, _ = self.calculate_rebalancing_trades(
             current_weights, target_weights, portfolio_value, prices
         )
         orders = self.filter_small_trades(orders)
@@ -310,4 +328,5 @@ class TransactionCostModel:
             else float("inf"),
             "recommend_rebalance": expected_benefit > total_cost,
         }
+
 

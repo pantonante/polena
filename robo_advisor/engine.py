@@ -40,6 +40,7 @@ class RebalancingResult:
         drift: Maximum allocation drift from target.
         should_rebalance: Whether rebalancing is recommended.
         portfolio_value: Total portfolio value.
+        residual_cash: Cash left unallocated due to rounding shares to integers.
     """
 
     current_weights: dict[str, float]
@@ -55,6 +56,7 @@ class RebalancingResult:
     drift: float
     should_rebalance: bool
     portfolio_value: float
+    residual_cash: float = 0.0
     current_allocation_by_class: dict[str, float] = field(default_factory=dict)
     target_allocation_by_class: dict[str, float] = field(default_factory=dict)
 
@@ -201,6 +203,10 @@ class RebalancingEngine:
         universe_tickers = etf_universe.get_tickers()
         all_tickers = list(set(portfolio_tickers + universe_tickers))
 
+        # Fetch ETF info (needed for asset class inference from yfinance categories)
+        print("Fetching ETF metadata...")
+        etf_universe.fetch_all_info()
+
         # Fetch current prices
         print("Fetching current prices...")
         current_prices = self.data_fetcher.get_current_prices(all_tickers)
@@ -211,7 +217,7 @@ class RebalancingEngine:
         # Get current weights
         current_weights = portfolio.get_weights(current_prices)
 
-        # Get ticker to asset class mapping
+        # Get ticker to asset class mapping (must be after fetch_all_info for correct categories)
         ticker_to_ac = etf_universe.get_ticker_to_asset_class()
 
         # Current allocation by asset class
@@ -283,8 +289,8 @@ class RebalancingEngine:
             projected_portfolio_returns, benchmark_returns
         )
 
-        # Calculate trades
-        trades = self.cost_model.calculate_rebalancing_trades(
+        # Calculate trades (shares rounded to integers)
+        trades, residual_cash = self.cost_model.calculate_rebalancing_trades(
             current_weights,
             target_weights,
             portfolio_value,
@@ -316,7 +322,9 @@ class RebalancingEngine:
             drift=drift,
             should_rebalance=should_rebalance,
             portfolio_value=portfolio_value,
+            residual_cash=residual_cash,
             current_allocation_by_class=current_allocation,
             target_allocation_by_class=target_allocation,
         )
+
 

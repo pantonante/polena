@@ -8,6 +8,7 @@ Minimum CVaR (Conditional Value at Risk).
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
@@ -40,7 +41,7 @@ Examples:
       --allocation "equity:0.7,bond:0.3" --optimizer min_cvar \\
       --cvar-confidence 0.95 --min-expected-return 0.06
 
-  # Output as JSON
+  # Output as JSON to terminal
   python main.py --portfolio data/portfolio.json --etfs data/etfs.json \\
       --allocation "equity:0.8,bond:0.2" --output json
         """,
@@ -174,13 +175,13 @@ Examples:
         help="Maximum weight for any position (default: 1.0)",
     )
 
-    # Output format
+    # Output format (terminal only; report files are always written to output/)
     parser.add_argument(
         "--output",
         type=str,
         choices=["text", "json"],
         default="text",
-        help="Output format (default: text)",
+        help="Terminal output format: text or json (default: text)",
     )
 
     return parser.parse_args()
@@ -252,8 +253,22 @@ def main() -> int:
         output = report_generator.generate(result, output_format=args.output)
 
         if output is not None:
-            # JSON output
+            # JSON output to stdout
             print(output)
+
+        # Always write report_MM_YYYY.json and report_MM_YYYY.md to output/
+        now = datetime.now()
+        report_base = f"report_{now.month:02d}_{now.year}"
+        output_dir = Path("output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        json_output = report_generator.generate(result, output_format="json")
+        md_output = report_generator.generate(result, output_format="markdown")
+        (output_dir / f"{report_base}.json").write_text(json_output)
+        (output_dir / f"{report_base}.md").write_text(md_output)
+        if args.output == "text":
+            console.print(
+                f"\n[dim]Reports saved to: output/{report_base}.json, output/{report_base}.md[/dim]"
+            )
 
         return 0
 

@@ -224,3 +224,5 @@ class RiskParityOptimizer(BaseOptimizer):
             f"Risk contribution range: {rc_pct.min():.2%} - {rc_pct.max():.2%}",
         )
 
+
+

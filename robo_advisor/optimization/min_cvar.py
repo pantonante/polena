@@ -146,20 +146,49 @@ class MinCVaROptimizer(BaseOptimizer):
         # Solve the problem
         problem = cp.Problem(objective, cvxpy_constraints)
 
-        try:
-            problem.solve(solver=cp.ECOS, verbose=False)
-        except Exception:
+        # Try solvers in order of preference (CLARABEL > ECOS > SCS)
+        # CLARABEL is more robust for LP/QP, ECOS is fast for small problems,
+        # SCS is a fallback but may need more iterations
+        solvers_to_try = [
+            (cp.CLARABEL, {"verbose": False}),
+            (cp.ECOS, {"verbose": False}),
+            (cp.SCS, {"verbose": False, "max_iters": 10000, "eps": 1e-6}),
+        ]
+
+        solved = False
+        solver_errors = []
+        for solver, solver_opts in solvers_to_try:
             try:
-                problem.solve(solver=cp.SCS, verbose=False)
+                problem.solve(solver=solver, **solver_opts)
+                if problem.status in ["optimal", "optimal_inaccurate"]:
+                    solved = True
+                    break
+                else:
+                    solver_errors.append(f"{solver}: {problem.status}")
             except Exception as e:
-                return OptimizationResult(
-                    weights={t: 1.0 / n_assets for t in tickers},
-                    expected_return=0.0,
-                    expected_volatility=0.0,
-                    sharpe_ratio=0.0,
-                    success=False,
-                    message=f"CVaR optimization failed: {e}",
-                )
+                solver_errors.append(f"{solver}: {e}")
+                continue
+
+        if not solved:
+            # Count ETFs per asset class for diagnostic message
+            ac_counts: dict[str, int] = {}
+            for ticker in tickers:
+                ac = ticker_to_asset_class.get(ticker, "unknown")
+                ac_counts[ac] = ac_counts.get(ac, 0) + 1
+
+            return OptimizationResult(
+                weights={t: 1.0 / n_assets for t in tickers},
+                expected_return=0.0,
+                expected_volatility=0.0,
+                sharpe_ratio=0.0,
+                success=False,
+                message=(
+                    f"CVaR optimization infeasible. "
+                    f"Asset class counts: {ac_counts}. "
+                    f"Required: {asset_classes}. "
+                    f"Check that ETF universe has enough assets in each target class."
+                ),
+            )
 
         if problem.status not in ["optimal", "optimal_inaccurate"]:
             return OptimizationResult(
@@ -198,4 +227,6 @@ class MinCVaROptimizer(BaseOptimizer):
             message=f"MinCVaR optimization converged. "
             f"Daily CVaR({self.confidence_level:.0%}): {-optimal_cvar:.4%}",
         )
+
+
 

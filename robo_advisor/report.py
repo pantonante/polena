@@ -41,9 +41,10 @@ class ReportGenerator:
         """
         if output_format == "json":
             return self._generate_json(result)
-        else:
-            self._generate_text(result)
-            return None
+        if output_format == "markdown":
+            return self._generate_markdown(result)
+        self._generate_text(result)
+        return None
 
     def _generate_json(self, result: RebalancingResult) -> str:
         """Generate JSON report.
@@ -60,6 +61,7 @@ class ReportGenerator:
                 "drift": result.drift,
                 "should_rebalance": result.should_rebalance,
                 "total_transaction_cost": result.total_transaction_cost,
+                "residual_cash": result.residual_cash,
                 "current_expense_ratio": result.current_expense_ratio,
                 "projected_expense_ratio": result.projected_expense_ratio,
             },
@@ -81,7 +83,7 @@ class ReportGenerator:
             "trades": [
                 {
                     "ticker": t.ticker,
-                    "shares": t.shares,
+                    "shares": int(t.shares),
                     "price": t.price,
                     "value": t.value,
                     "action": "BUY" if t.is_buy else "SELL",
@@ -105,6 +107,178 @@ class ReportGenerator:
         }
 
         return json.dumps(output, indent=2)
+
+    def _generate_markdown(self, result: RebalancingResult) -> str:
+        """Generate markdown report.
+
+        Args:
+            result: RebalancingResult from RebalancingEngine.
+
+        Returns:
+            Markdown string.
+        """
+        lines: list[str] = [
+            "# Portfolio Rebalancing Report",
+            "",
+            "## Summary",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+            f"| Portfolio Value | ${result.portfolio_value:,.2f} |",
+            f"| Current Drift | {result.drift:.2%} |",
+            "| Rebalancing Recommended | "
+            + ("Yes" if result.should_rebalance else "No") + " |",
+            f"| Total Transaction Cost | ${result.total_transaction_cost:,.2f} |",
+            f"| Cost as % of Portfolio | "
+            + (
+                f"{result.total_transaction_cost / result.portfolio_value * 100:.4f}%"
+                if result.portfolio_value > 0
+                else "N/A"
+            )
+            + " |",
+            f"| Residual Cash | ${result.residual_cash:,.2f} |",
+            "",
+            "## Optimization Result",
+            "",
+        ]
+        opt = result.optimization_result
+        lines.extend([
+            "| Metric | Value |",
+            "|--------|-------|",
+            "| Status | " + ("Success" if opt.success else "Failed") + " |",
+            f"| Message | {opt.message} |",
+            f"| Expected Annual Return | {opt.expected_return:.2%} |",
+            f"| Expected Volatility | {opt.expected_volatility:.2%} |",
+            f"| Sharpe Ratio | {opt.sharpe_ratio:.3f} |",
+            "",
+            "## Asset Allocation",
+            "",
+            "| Asset Class | Current | Target | Difference |",
+            "|-------------|---------|--------|------------|",
+        ])
+        all_classes = set(result.current_allocation_by_class.keys()) | set(
+            result.target_allocation_by_class.keys()
+        )
+        for ac in sorted(all_classes):
+            current = result.current_allocation_by_class.get(ac, 0.0)
+            target = result.target_allocation_by_class.get(ac, 0.0)
+            diff = target - current
+            lines.append(f"| {ac.title()} | {current:.2%} | {target:.2%} | {diff:+.2%} |")
+        lines.extend([
+            "",
+            "## Portfolio Weights",
+            "",
+            "| Ticker | Current | Target | Change |",
+            "|--------|---------|--------|--------|",
+        ])
+        all_tickers = set(result.current_weights.keys()) | set(result.target_weights.keys())
+        for ticker in sorted(all_tickers):
+            if ticker == "_CASH":
+                continue
+            current = result.current_weights.get(ticker, 0.0)
+            target = result.target_weights.get(ticker, 0.0)
+            if current < 0.001 and target < 0.001:
+                continue
+            diff = target - current
+            lines.append(f"| {ticker} | {current:.2%} | {target:.2%} | {diff:+.2%} |")
+        cash_current = result.current_weights.get("_CASH", 0.0)
+        if cash_current > 0.001:
+            lines.append(f"| Cash | {cash_current:.2%} | 0.00% | {-cash_current:+.2%} |")
+        lines.extend(["", "## Recommended Trades", ""])
+        if not result.trades:
+            lines.append("*No trades recommended.*")
+            lines.append("")
+        else:
+            lines.extend([
+                "| Action | Ticker | Shares | Price | Value |",
+                "|--------|--------|--------|-------|-------|",
+            ])
+            for trade in sorted(result.trades, key=lambda t: (t.is_buy, t.ticker)):
+                action = "BUY" if trade.is_buy else "SELL"
+                lines.append(
+                    f"| {action} | {trade.ticker} | {abs(int(trade.shares)):,} | "
+                    f"${trade.price:,.2f} | ${trade.value:,.2f} |"
+                )
+            lines.append("")
+        if result.trade_costs:
+            lines.extend([
+                "## Transaction Costs",
+                "",
+                "| Ticker | Commission | Spread | Impact | Total |",
+                "|--------|------------|--------|--------|-------|",
+            ])
+            for cost in result.trade_costs:
+                lines.append(
+                    f"| {cost.ticker} | ${cost.commission:,.2f} | "
+                    f"${cost.spread_cost:,.2f} | ${cost.market_impact:,.2f} | ${cost.total:,.2f} |"
+                )
+            lines.append(
+                f"| **TOTAL** | **${sum(c.commission for c in result.trade_costs):,.2f}** | "
+                f"**${sum(c.spread_cost for c in result.trade_costs):,.2f}** | "
+                f"**${sum(c.market_impact for c in result.trade_costs):,.2f}** | "
+                f"**${result.total_transaction_cost:,.2f}** |"
+            )
+            lines.extend(["", "### Expense Ratios", ""])
+            current_annual = result.portfolio_value * result.current_expense_ratio
+            projected_annual = result.portfolio_value * result.projected_expense_ratio
+            lines.extend([
+                "| Portfolio | Expense Ratio | Annual Cost |",
+                "|-----------|---------------|-------------|",
+                f"| Current | {result.current_expense_ratio:.4%} | ${current_annual:,.2f} |",
+                f"| Projected | {result.projected_expense_ratio:.4%} | ${projected_annual:,.2f} |",
+            ])
+            if current_annual - projected_annual > 0:
+                lines.append(f"| *Annual Savings* | | ${current_annual - projected_annual:,.2f} |")
+            lines.append("")
+        lines.extend(["## Risk Metrics Comparison", ""])
+        metrics_display = [
+            ("annualized_return", "Annual Return"),
+            ("annualized_volatility", "Volatility"),
+            ("sharpe_ratio", "Sharpe Ratio"),
+            ("sortino_ratio", "Sortino Ratio"),
+            ("max_drawdown", "Max Drawdown"),
+            ("cvar_95", "CVaR (95%)"),
+            ("beta", "Beta"),
+            ("alpha", "Alpha"),
+        ]
+        lines.extend(["| Metric | Current | Projected | Change |", "|--------|---------|-----------|--------|"])
+        for key, label in metrics_display:
+            current_val = result.current_metrics.get(key)
+            projected_val = result.projected_metrics.get(key)
+            if current_val is None or projected_val is None:
+                continue
+            diff = projected_val - current_val
+            if "ratio" in key.lower() or key in ("beta", "alpha"):
+                current_str = f"{current_val:.3f}"
+                projected_str = f"{projected_val:.3f}"
+                diff_str = f"{diff:+.3f}"
+            else:
+                current_str = f"{current_val:.2%}"
+                projected_str = f"{projected_val:.2%}"
+                diff_str = f"{diff:+.2%}"
+            lines.append(f"| {label} | {current_str} | {projected_str} | {diff_str} |")
+        lines.extend(["", "## Recommendation", ""])
+        if result.should_rebalance:
+            improvement = (
+                result.projected_metrics.get("sharpe_ratio", 0)
+                - result.current_metrics.get("sharpe_ratio", 0)
+            )
+            lines.extend([
+                "**REBALANCE**",
+                "",
+                f"Portfolio has drifted {result.drift:.1%} from target.",
+                f"Transaction cost: ${result.total_transaction_cost:.2f} "
+                f"({result.total_transaction_cost / result.portfolio_value * 100:.3f}% of portfolio).",
+                f"Expected Sharpe improvement: {improvement:+.3f}",
+            ])
+        else:
+            lines.extend([
+                "**HOLD**",
+                "",
+                f"Current drift ({result.drift:.1%}) is within tolerance. No rebalancing needed.",
+            ])
+        lines.append("")
+        return "\n".join(lines)
 
     def _generate_text(self, result: RebalancingResult) -> None:
         """Generate rich text report.
@@ -167,6 +341,9 @@ class ReportGenerator:
             f"{result.total_transaction_cost / result.portfolio_value * 100:.4f}%"
             if result.portfolio_value > 0
             else "N/A",
+        )
+        table.add_row(
+            "Residual Cash (from rounding)", f"${result.residual_cash:,.2f}"
         )
 
         self.console.print(table)
@@ -278,7 +455,7 @@ class ReportGenerator:
 
         for trade in sorted_trades:
             action = "[green]BUY[/green]" if trade.is_buy else "[red]SELL[/red]"
-            shares_text = f"{abs(trade.shares):,.2f}"
+            shares_text = f"{abs(int(trade.shares)):,}"
 
             table.add_row(
                 action,
@@ -449,4 +626,5 @@ class ReportGenerator:
             self.console.print(Panel(message, border_style="yellow"))
 
         self.console.print()
+
 

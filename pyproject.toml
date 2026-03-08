@@ -16,6 +16,11 @@ dependencies = [
 [project.scripts]
 polena = "main:main"
 
+[project.optional-dependencies]
+morningstar = [
+    "mstarpy>=8.0.2",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["robo_advisor"]
 
